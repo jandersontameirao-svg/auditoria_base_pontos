@@ -223,41 +223,44 @@ export default function Home() {
         import("jspdf"),
         import("html2canvas"),
       ]);
-      const canvas = await html2canvas(reportRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: reportRef.current.scrollWidth,
-        onclone: (doc) => {
-          doc.documentElement.classList.remove("dark");
-          doc.querySelectorAll<HTMLElement>("[data-pdf-hide='true']").forEach((el) => { el.style.display = "none"; });
-          doc.querySelectorAll<HTMLElement>("[data-pdf-show='true']").forEach((el) => { el.style.display = "block"; });
-        },
-      });
-
+      const onclone = (doc: Document) => {
+        doc.documentElement.classList.remove("dark");
+        doc.querySelectorAll<HTMLElement>("[data-pdf-hide='true']").forEach((el) => { el.style.display = "none"; });
+        doc.querySelectorAll<HTMLElement>("[data-pdf-show='true']").forEach((el) => { el.style.display = "block"; });
+      };
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const margin = 8;
-      const imgW = pageW - margin * 2;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      const pageImgH = pageH - margin * 2;
-      const pageCanvasH = Math.floor((pageImgH * canvas.width) / imgW);
-      let sourceY = 0;
-      let page = 0;
+      const usableW = pageW - margin * 2;
+      const usableH = pageH - margin * 2;
 
-      while (sourceY < canvas.height) {
-        const sliceH = Math.min(pageCanvasH, canvas.height - sourceY);
-        const slice = document.createElement("canvas");
-        slice.width = canvas.width;
-        slice.height = sliceH;
-        slice.getContext("2d")!.drawImage(canvas, 0, sourceY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-        if (page > 0) pdf.addPage();
-        const sliceImgH = (sliceH * imgW) / canvas.width;
-        pdf.addImage(slice.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, imgW, sliceImgH);
-        sourceY += sliceH;
-        page++;
+      // Paginação por BLOCO (seção): nunca corta uma seção ao meio; blocos maiores
+      // que a página são reduzidos para caber em UMA página (ex.: "Gráficos por Campo").
+      const blocos = (Array.from(reportRef.current.children) as HTMLElement[])
+        .filter((el) => el.getAttribute("data-pdf-hide") !== "true" && el.offsetHeight > 0);
+      let cursorY = margin;
+      let primeiro = true;
+
+      for (const bloco of blocos) {
+        const canvas = await html2canvas(bloco, { backgroundColor: "#ffffff", scale: 2, useCORS: true, logging: false, windowWidth: bloco.scrollWidth, onclone });
+        const img = canvas.toDataURL("image/jpeg", 0.95);
+        let w = usableW;
+        let h = (canvas.height * usableW) / canvas.width;
+        if (h > usableH) {
+          // Seção maior que a página inteira → escala para caber em uma única página
+          const fator = usableH / h;
+          h = usableH; w = usableW * fator;
+          if (!primeiro) pdf.addPage();
+          pdf.addImage(img, "JPEG", margin + (usableW - w) / 2, margin, w, h);
+          cursorY = pageH; // força nova página para o próximo bloco
+          primeiro = false;
+          continue;
+        }
+        if (!primeiro && cursorY + h > pageH - margin) { pdf.addPage(); cursorY = margin; }
+        pdf.addImage(img, "JPEG", margin, cursorY, w, h);
+        cursorY += h + 4;
+        primeiro = false;
       }
       pdf.save("relatorio_inconsistencias.pdf");
     } catch (err) {

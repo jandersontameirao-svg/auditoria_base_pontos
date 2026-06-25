@@ -126,6 +126,11 @@
     @apply bg-background text-foreground;
   }
 
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
   @media print {
     .report-section {
       break-inside: avoid;
