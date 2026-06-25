@@ -40,7 +40,6 @@ function listar(a: string[]) { return a.length <= 1 ? a.join("") : a.length === 
 const soDigitos = (v: string) => norm(v).replace(/[^\d]/g, "");
 const dataValida = (v: string) => { const m = norm(v).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (!m) return false; const d = +m[1], mo = +m[2]; return d >= 1 && d <= 31 && mo >= 1 && mo <= 12; };
 const profValida = (v: string) => /^[\d.,]+\s*(cm|m)?$/i.test(norm(v));
-const munsellValido = (v: string) => /^\d(\.\d)?\s?(yr|r|y|gy|g|bg|b|pb|p|rp)\s?\d(\.\d)?\/\d+/i.test(norm(v)) || nk(v) === "nao se aplica";
 
 export default function Home() {
   const { user, logout } = useAuth();
@@ -135,8 +134,6 @@ export default function Home() {
       if (yv !== undefined && norm(row[yv])) { const n = +soDigitos(row[yv]); if (!n || n < 1000000 || n > 10000000) add("UTM Y fora de faixa", norm(row[yv])); }
       const dv = c(COL.data);
       if (dv !== undefined && norm(row[dv]) && !dataValida(row[dv])) add("Data inválida", norm(row[dv]));
-      const mv = c(COL.munsell);
-      if (mv !== undefined && norm(row[mv]) && !munsellValido(row[mv])) add("Munsell fora do padrão", norm(row[mv]));
     }
     // (3) Duplicidade de pontos
     Object.entries(contagemPonto).filter(([, q]) => q > 1).forEach(([p, q]) => validacoes.push({ ponto: p, tipo: "Ponto duplicado", detalhe: `${q} ocorrências`, responsavel: "—", projeto: "", unidade: "" }));
