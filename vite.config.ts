@@ -220,22 +220,29 @@ function vitePluginAiSummary(): Plugin {
           }
         }
       }
-      server.middlewares.use("/api/ai-summary", async (req, res, next) => {
-        if (req.method !== "POST") return next();
-        let body = "";
-        req.on("data", (c) => (body += c.toString()));
-        req.on("end", async () => {
-          try {
-            const { gerarResumoIA } = await import("./server/aiSummary");
-            const summary = await gerarResumoIA(JSON.parse(body || "{}"));
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ summary }));
-          } catch (e: any) {
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: e?.message || "Erro ao gerar análise." }));
-          }
+      const rotas: Record<string, (m: any, b: any) => Promise<any>> = {
+        "/api/ai-summary": async (m, b) => ({ summary: await m.gerarResumoIA(b) }),
+        "/api/ai-suggest": async (m, b) => ({ sugestoes: await m.gerarSugestoes(b) }),
+        "/api/ai-chat": async (m, b) => ({ resposta: await m.responderChat(b) }),
+      };
+      for (const rota of Object.keys(rotas)) {
+        server.middlewares.use(rota, async (req, res, next) => {
+          if (req.method !== "POST") return next();
+          let body = "";
+          req.on("data", (c) => (body += c.toString()));
+          req.on("end", async () => {
+            try {
+              const m = await import("./server/aiSummary");
+              const out = await rotas[rota](m, JSON.parse(body || "{}"));
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify(out));
+            } catch (e: any) {
+              res.writeHead(500, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: e?.message || "Erro." }));
+            }
+          });
         });
-      });
+      }
     },
   };
 }
