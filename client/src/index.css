@@ -114,6 +114,11 @@
 }
 
 @layer base {
+  html {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

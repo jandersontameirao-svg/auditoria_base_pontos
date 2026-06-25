@@ -5,19 +5,18 @@ import {
   Loader2, ShieldCheck, FileText, History, Lightbulb, MessageCircle, Send, Moon, Sun, Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip, Legend } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Issue = { ponto: string; detalhe: string; responsavel: string; projeto: string; unidade: string };
 type Validacao = Issue & { tipo: string };
+type FieldDistribution = { campo: string; itens: [string, number][]; total: number };
 
 interface RelatorioData {
   camposBranco: Issue[];
   violacoesZero: Issue[];
   validacoes: Validacao[];
+  distribuicoes: FieldDistribution[];
   fileName: string;
   sheetName: string;
   totalPontos: number;
@@ -58,6 +57,7 @@ export default function Home() {
   const [dark, setDark] = useState(() => localStorage.getItem("arqueo_dark") === "1");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); localStorage.setItem("arqueo_dark", dark ? "1" : "0"); }, [dark]);
 
@@ -67,6 +67,7 @@ export default function Home() {
     const arr = Array.from(files); if (!arr.length) return;
     setNomeArquivo(arr.length === 1 ? arr[0].name : `${arr.length} arquivos`);
     try {
+      const XLSX = await import("xlsx");
       // Lê todos os arquivos como objetos {header,rows} e os combina ALINHANDO por nome de coluna,
       // de forma que arquivos com ordem de colunas diferente não desalinhem os dados.
       const lidos: Array<{ header: string[]; rows: any[][] }> = [];
@@ -99,11 +100,22 @@ export default function Home() {
     const meta = (row: any[]) => ({ projeto: iProj !== undefined ? norm(row[iProj]) : "", unidade: iUni !== undefined ? norm(row[iUni]) : "" });
 
     const camposBranco: Issue[] = [], violacoesZero: Issue[] = [], validacoes: Validacao[] = [];
+    const distCols = new Set(["vegetacao", "vegetação", "status", "tipo solo", "uso do solo", "declive", "munsell", "profundidade", "textura", "coloracao", "coloração"]);
+    const distSkip = new Set([nk(COL.ponto), nk(COL.resp), nk(COL.proj), nk(COL.uni), nk(COL.x), nk(COL.y), nk(COL.data), "observacao", "observação"]);
+    const distMap: Record<number, Map<string, number>> = {};
+    header.forEach((h, i) => {
+      const key = nk(h);
+      if (h && !distSkip.has(key)) distMap[i] = new Map();
+    });
     const pontosProblema = new Set<string>(); const contagemPonto: Record<string, number> = {}; let totalPontos = 0;
 
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r]; const ponto = norm(row[iP]); if (!ponto) continue;
       totalPontos++; contagemPonto[ponto] = (contagemPonto[ponto] || 0) + 1;
+      Object.entries(distMap).forEach(([col, m]) => {
+        const valor = norm(row[Number(col)]);
+        if (valor) m.set(valor, (m.get(valor) || 0) + 1);
+      });
       const resp = norm(row[iR]) || "(sem responsável)"; const m = meta(row);
       // Regra 1 (original) — campos em branco exceto Coloração
       for (let col = 0; col < header.length; col++) {
@@ -129,8 +141,14 @@ export default function Home() {
     // (3) Duplicidade de pontos
     Object.entries(contagemPonto).filter(([, q]) => q > 1).forEach(([p, q]) => validacoes.push({ ponto: p, tipo: "Ponto duplicado", detalhe: `${q} ocorrências`, responsavel: "—", projeto: "", unidade: "" }));
 
+    const distribuicoes = Object.entries(distMap).map(([col, m]) => {
+      const campo = header[Number(col)];
+      const itens = Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+      return { campo, itens, total: itens.reduce((s, [, q]) => s + q, 0) };
+    }).filter((d) => d.total > 0 && (distCols.has(nk(d.campo)) || d.itens.length <= 18)).slice(0, 18);
+
     setAiTexto(""); setAiErro(""); setSugestoes([]); setChatMsgs([]); setBusca(""); setFiltroResp("");
-    const rel: RelatorioData = { camposBranco, violacoesZero, validacoes, fileName, sheetName, totalPontos, pontosComProblema: pontosProblema.size, dataGeracao: new Date() };
+    const rel: RelatorioData = { camposBranco, violacoesZero, validacoes, distribuicoes, fileName, sheetName, totalPontos, pontosComProblema: pontosProblema.size, dataGeracao: new Date() };
     setRelatorio(rel);
     // (8) Histórico
     const score = totalPontos ? Math.round(((totalPontos - pontosProblema.size) / totalPontos) * 100) : 100;
@@ -167,8 +185,8 @@ export default function Home() {
     ...(relatorio?.validacoes.map((b) => ({ Tipo: b.tipo, Ponto: b.ponto, Detalhe: b.detalhe, Responsável: b.responsavel })) || []),
   ];
   const downloadCSV = () => { const inc = todasInc(); if (!inc.length) return; const cols = ["Tipo", "Ponto", "Detalhe", "Responsável"]; const l = [cols.join(";")]; inc.forEach((o: any) => l.push(cols.map((cc) => '"' + String(o[cc]).replace(/"/g, '""') + '"').join(";"))); baixar(new Blob(["﻿" + l.join("\r\n")], { type: "text/csv;charset=utf-8" }), "inconsistencias.csv"); };
-  const downloadXLSX = () => {
-    if (!relatorio) return; const wb = XLSX.utils.book_new();
+  const downloadXLSX = async () => {
+    if (!relatorio) return; const XLSX = await import("xlsx"); const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(todasInc()), "Inconsistências");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porResp.map(([nome, q]) => ({ Responsável: nome, Inconsistências: q }))), "Por Responsável");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
@@ -178,8 +196,12 @@ export default function Home() {
     XLSX.writeFile(wb, "relatorio_inconsistencias.xlsx");
   };
   // (5) PDF nativo com logo
-  const downloadPDF = async () => {
+  const downloadPDFSimples = async () => {
     if (!relatorio) return;
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF();
     try {
       const img = await fetch("/arqueo10anos.webp").then((r) => r.blob());
@@ -192,6 +214,56 @@ export default function Home() {
     const body = todasInc().map((o: any) => [o.Tipo, o.Ponto, o.Detalhe, o.Responsável]);
     autoTable(doc, { startY: 40, head: [["Tipo", "Ponto", "Detalhe", "Responsável"]], body, styles: { fontSize: 8 }, headStyles: { fillColor: [30, 58, 95] } });
     doc.save("relatorio_inconsistencias.pdf");
+  };
+
+  const downloadPDF = async () => {
+    if (!relatorio || !reportRef.current) return;
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ]);
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: reportRef.current.scrollWidth,
+        onclone: (doc) => {
+          doc.documentElement.classList.remove("dark");
+          doc.querySelectorAll<HTMLElement>("[data-pdf-hide='true']").forEach((el) => { el.style.display = "none"; });
+          doc.querySelectorAll<HTMLElement>("[data-pdf-show='true']").forEach((el) => { el.style.display = "block"; });
+        },
+      });
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const imgW = pageW - margin * 2;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      const pageImgH = pageH - margin * 2;
+      const pageCanvasH = Math.floor((pageImgH * canvas.width) / imgW);
+      let sourceY = 0;
+      let page = 0;
+
+      while (sourceY < canvas.height) {
+        const sliceH = Math.min(pageCanvasH, canvas.height - sourceY);
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width;
+        slice.height = sliceH;
+        slice.getContext("2d")!.drawImage(canvas, 0, sourceY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        if (page > 0) pdf.addPage();
+        const sliceImgH = (sliceH * imgW) / canvas.width;
+        pdf.addImage(slice.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, imgW, sliceImgH);
+        sourceY += sliceH;
+        page++;
+      }
+      pdf.save("relatorio_inconsistencias.pdf");
+    } catch (err) {
+      console.error(err);
+      await downloadPDFSimples();
+    }
   };
 
   // -------- IA --------
@@ -248,7 +320,7 @@ export default function Home() {
           <>
             <div className="flex flex-wrap gap-2 mb-6 items-center print:hidden">
               <Button onClick={() => window.print()} className="bg-blue-700 hover:bg-blue-800 text-white gap-2"><Printer className="w-4 h-4" /> Imprimir</Button>
-              <Button onClick={downloadPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" /> PDF</Button>
+              <Button onClick={() => window.print()} variant="outline" className="gap-2"><FileText className="w-4 h-4" /> PDF</Button>
               <Button onClick={downloadXLSX} variant="outline" className="gap-2"><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
               <Button onClick={downloadCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" /> CSV</Button>
               <Button onClick={gerarAnalise} disabled={aiCarregando} className="bg-amber-600 hover:bg-amber-700 text-white gap-2">{aiCarregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Análise</Button>
@@ -257,9 +329,9 @@ export default function Home() {
               <span className="text-sm text-gray-600 dark:text-slate-400 ml-auto">{relatorio.totalPontos} pontos</span>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-10 print:shadow-none print:p-0">
+            <div ref={reportRef} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-10 print:shadow-none print:p-0">
               <div className="border-b-4 border-blue-700 pb-6 mb-8 flex items-start gap-4">
-                <img src="/arqueo10anos.webp" alt="Grupo Arqueo" className="h-14 w-auto object-contain hidden print:block" />
+                <img src="/arqueo10anos.webp" alt="Grupo Arqueo" data-pdf-show="true" className="h-14 w-auto object-contain hidden print:block" />
                 <div><h1 className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-200">Relatório de Inconsistências da Base de Pontos</h1>
                   <div className="text-gray-600 dark:text-slate-300 mt-2">Auditoria de Qualidade dos Dados · Grupo Arqueo</div>
                   <div className="text-sm text-gray-500 mt-3">Arquivo: <strong>{relatorio.fileName}</strong> · Pontos analisados: <strong>{relatorio.totalPontos}</strong></div></div>
@@ -311,7 +383,7 @@ export default function Home() {
               )}
 
               {/* Filtros */}
-              <div className="flex flex-wrap gap-3 mb-6 items-center print:hidden">
+              <div data-pdf-hide="true" className="flex flex-wrap gap-3 mb-6 items-center print:hidden">
                 <div className="relative flex-1 min-w-[220px]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por ponto, campo ou responsável…" className="pl-9" /></div>
                 <select value={filtroResp} onChange={(e) => setFiltroResp(e.target.value)} className="h-9 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 text-sm"><option value="">Todos os responsáveis</option>{responsaveis.map((r) => <option key={r} value={r}>{r}</option>)}</select>
               </div>
@@ -328,6 +400,18 @@ export default function Home() {
               <Sec n="4" t="Resumo por Responsável">
                 {porResp.length ? <Barras dados={porResp} /> : <Vazio msg="Base sem inconsistências." ok />}
               </Sec>
+              {relatorio.distribuicoes.length > 0 && (
+                <Sec n="5" t="Gráficos por Campo">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {relatorio.distribuicoes.map((dist) => (
+                      <div key={dist.campo} className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700">
+                        <Barras titulo={dist.campo} dados={dist.itens.slice(0, 10)} />
+                        {dist.itens.length > 10 && <div className="mt-2 text-right text-xs text-slate-500 dark:text-slate-300">+{dist.itens.length - 10} categorias</div>}
+                      </div>
+                    ))}
+                  </div>
+                </Sec>
+              )}
 
               <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-8 flex justify-between text-xs text-gray-500"><span>Plataforma de Auditoria · Grupo Arqueo 10 anos.</span><span>Emitido em {relatorio.dataGeracao.toLocaleString("pt-BR")}</span></div>
             </div>
