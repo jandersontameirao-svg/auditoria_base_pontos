@@ -227,6 +227,18 @@ export default function Home() {
         doc.documentElement.classList.remove("dark");
         doc.querySelectorAll<HTMLElement>("[data-pdf-hide='true']").forEach((el) => { el.style.display = "none"; });
         doc.querySelectorAll<HTMLElement>("[data-pdf-show='true']").forEach((el) => { el.style.display = "block"; });
+        // Gráficos por Campo: grade compacta de 3 colunas para caber TODOS em uma página.
+        const st = doc.createElement("style");
+        st.textContent =
+          "[data-pdf-charts]{grid-template-columns:repeat(3,1fr)!important;gap:6px!important}" +
+          "[data-pdf-charts]>div{padding:6px!important}" +
+          "[data-pdf-charts] .h-7{height:12px!important}" +
+          "[data-pdf-charts] .space-y-3>*+*{margin-top:3px!important}" +
+          "[data-pdf-charts] .mb-3{margin-bottom:3px!important}" +
+          "[data-pdf-charts] .w-40,[data-pdf-charts] .sm\\:w-56{width:62px!important}" +
+          "[data-pdf-charts] .text-sm{font-size:7px!important;line-height:1.1!important}" +
+          "[data-pdf-charts] .text-xs{font-size:6px!important}";
+        doc.head.appendChild(st);
       };
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
@@ -405,7 +417,7 @@ export default function Home() {
               </Sec>
               {relatorio.distribuicoes.length > 0 && (
                 <Sec n="5" t="Gráficos por Campo">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div data-pdf-charts="true" className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {relatorio.distribuicoes.map((dist) => (
                       <div key={dist.campo} className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700">
                         <Barras titulo={dist.campo} dados={dist.itens.slice(0, 10)} />
