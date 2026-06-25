@@ -67,19 +67,25 @@ export default function Home() {
     const arr = Array.from(files); if (!arr.length) return;
     setNomeArquivo(arr.length === 1 ? arr[0].name : `${arr.length} arquivos`);
     try {
-      let header: string[] | null = null; const linhas: any[][] = []; let sheetName = "";
+      // Lê todos os arquivos como objetos {header,rows} e os combina ALINHANDO por nome de coluna,
+      // de forma que arquivos com ordem de colunas diferente não desalinhem os dados.
+      const lidos: Array<{ header: string[]; rows: any[][] }> = [];
+      let sheetName = "";
       for (const f of arr) {
-        const buf = await f.arrayBuffer();
-        const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+        const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: "array" });
         const sn = wb.SheetNames.find((n) => nk(n) === "pontos") || wb.SheetNames[0];
         sheetName = sn;
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" }) as any[][];
-        if (!rows.length) continue;
-        if (!header) { header = rows[0].map(norm); linhas.push(...rows.slice(1)); }
-        else linhas.push(...rows.slice(1)); // ignora cabeçalho dos demais
+        if (rows.length) lidos.push({ header: rows[0].map(norm), rows: rows.slice(1) });
       }
-      if (!header) { setErro("A planilha não contém dados."); return; }
-      processar([header, ...linhas], arr.length === 1 ? arr[0].name : `${arr.length} arquivos combinados`, sheetName);
+      if (!lidos.length) { setErro("A planilha não contém dados."); return; }
+      // Cabeçalho mestre = união de todas as colunas (preserva ordem do 1º arquivo).
+      const master: string[] = []; const masterSet = new Set<string>();
+      lidos.forEach((l) => l.header.forEach((h) => { if (h && !masterSet.has(nk(h))) { masterSet.add(nk(h)); master.push(h); } }));
+      const linhas: any[][] = [];
+      lidos.forEach((l) => { const map = l.header.map((h) => master.findIndex((mh) => nk(mh) === nk(h)));
+        l.rows.forEach((row) => { const novo = new Array(master.length).fill(""); row.forEach((cell, i) => { if (map[i] >= 0) novo[map[i]] = cell; }); linhas.push(novo); }); });
+      processar([master, ...linhas], arr.length === 1 ? arr[0].name : `${arr.length} arquivos combinados`, sheetName);
     } catch (err: any) { setErro("Não foi possível ler o arquivo: " + err.message); }
   };
 
