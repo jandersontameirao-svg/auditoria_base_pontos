@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -208,6 +209,17 @@ function vitePluginAiSummary(): Plugin {
   return {
     name: "arqueo-ai-summary",
     configureServer(server: ViteDevServer) {
+      // Carrega o .env do projeto para process.env (em dev o Vite não expõe vars sem prefixo VITE_).
+      const envPath = path.resolve(import.meta.dirname, ".env");
+      if (fs.existsSync(envPath)) {
+        for (const linha of fs.readFileSync(envPath, "utf-8").split(/\r?\n/)) {
+          const m = linha.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
+          if (m && !linha.trimStart().startsWith("#")) {
+            const valor = m[2].replace(/^["']|["']$/g, "");
+            if (!process.env[m[1]]) process.env[m[1]] = valor;
+          }
+        }
+      }
       server.middlewares.use("/api/ai-summary", async (req, res, next) => {
         if (req.method !== "POST") return next();
         let body = "";

@@ -1,3 +1,4 @@
+import "dotenv/config";
 // Handler compartilhado para gerar análise executiva com IA (Anthropic Claude).
 // Usado tanto pelo middleware do Vite (dev) quanto pelo Express (produção).
 // Requer a variável de ambiente ANTHROPIC_API_KEY (veja .env.example).
