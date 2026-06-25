@@ -106,11 +106,13 @@ export default function Home() {
       const key = nk(h);
       if (h && !distSkip.has(key)) distMap[i] = new Map();
     });
-    const pontosProblema = new Set<string>(); const contagemPonto: Record<string, number> = {}; let totalPontos = 0;
+    const pontosProblema = new Set<string>(); const dupMap: Record<string, string[]> = {}; let totalPontos = 0;
+    // chave de duplicidade: ignora espaços, pontos, hífens, underscores e maiúsculas (ex.: "a200" = "a 200" = ".a200")
+    const dupKey = (p: string) => p.toLowerCase().replace(/[\s._\-]/g, "");
 
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r]; const ponto = norm(row[iP]); if (!ponto) continue;
-      totalPontos++; contagemPonto[ponto] = (contagemPonto[ponto] || 0) + 1;
+      totalPontos++; (dupMap[dupKey(ponto)] ||= []).push(ponto);
       Object.entries(distMap).forEach(([col, m]) => {
         const valor = norm(row[Number(col)]);
         if (valor) m.set(valor, (m.get(valor) || 0) + 1);
@@ -136,7 +138,7 @@ export default function Home() {
       if (dv !== undefined && norm(row[dv]) && !dataValida(row[dv])) add("Data inválida", norm(row[dv]));
     }
     // (3) Duplicidade de pontos
-    Object.entries(contagemPonto).filter(([, q]) => q > 1).forEach(([p, q]) => validacoes.push({ ponto: p, tipo: "Ponto duplicado", detalhe: `${q} ocorrências`, responsavel: "—", projeto: "", unidade: "" }));
+    Object.values(dupMap).filter((vars) => vars.length > 1).forEach((vars) => validacoes.push({ ponto: vars[0], tipo: "Ponto duplicado", detalhe: `${vars.length} ocorrências: ${Array.from(new Set(vars)).join(", ")}`, responsavel: "—", projeto: "", unidade: "" }));
 
     const distribuicoes = Object.entries(distMap).map(([col, m]) => {
       const campo = header[Number(col)];
