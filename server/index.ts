@@ -37,7 +37,9 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  // Porta definida pela VPS via variável de ambiente PORT. Fallback alto para
+  // não colidir com outros apps (ex.: algo já rodando em 3000) caso PORT não seja informada.
+  const port = process.env.PORT || 8080;
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
