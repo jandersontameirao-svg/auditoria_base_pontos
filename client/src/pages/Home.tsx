@@ -325,7 +325,7 @@ export default function Home() {
                 <Download className="w-4 h-4" /> CSV
               </Button>
               <Button onClick={gerarAnaliseIA} disabled={aiCarregando} className="bg-amber-600 hover:bg-amber-700 text-white flex gap-2">
-                {aiCarregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Análise com IA
+                {aiCarregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Gerar Análise
               </Button>
               <Button onClick={reset} variant="outline" className="flex gap-2">
                 <RotateCcw className="w-4 h-4" /> Outra planilha
@@ -394,9 +394,9 @@ export default function Home() {
               {(aiTexto || aiErro || aiCarregando) && (
                 <div className="mb-10 rounded-xl border border-amber-200 bg-amber-50 p-5">
                   <h2 className="text-base font-bold text-amber-800 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" /> Análise Executiva (IA)
+                    <Sparkles className="w-4 h-4" /> Análise Executiva
                   </h2>
-                  {aiCarregando && <p className="text-amber-700 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Gerando análise com Claude…</p>}
+                  {aiCarregando && <p className="text-amber-700 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Gerando análise…</p>}
                   {aiErro && <p className="text-red-700 text-sm">{aiErro}</p>}
                   {aiTexto && <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{aiTexto}</p>}
                 </div>
