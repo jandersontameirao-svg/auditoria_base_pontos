@@ -25,7 +25,7 @@ interface RelatorioData {
 }
 
 const CAMPO_ISENTO = "Coloração";
-const CAMPOS_REGRA_ZERO = ["Tipo Solo", "Munsell", "Textura"];
+const CAMPOS_REGRA_ZERO = ["Tipo Solo", "Textura"];
 const COL = { prof: "Profundidade", ponto: "Ponto", resp: "Responsável", proj: "Projeto", uni: "Unidade", x: "UTM X", y: "UTM Y", data: "Data", munsell: "Munsell" };
 
 const norm = (v: any) => (v === null || v === undefined ? "" : String(v).trim());
