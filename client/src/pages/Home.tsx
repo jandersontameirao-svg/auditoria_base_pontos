@@ -434,7 +434,7 @@ export default function Home() {
 }
 
 function Sec({ n, t, children }: { n: string; t: string; children: React.ReactNode }) {
-  return <div className="mb-10"><h2 className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-4 flex items-center gap-2"><span className="bg-blue-700 text-white w-7 h-7 rounded flex items-center justify-center text-sm">{n}</span>{t}</h2>{children}</div>;
+  return <div className="report-section mb-10"><h2 className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-4 flex items-center gap-2"><span className="bg-blue-700 text-white w-7 h-7 rounded flex items-center justify-center text-sm">{n}</span>{t}</h2>{children}</div>;
 }
 function Kpi({ cor, lbl, v, icon }: { cor: string; lbl: string; v: any; icon?: boolean }) {
   return <div className={`bg-gradient-to-br ${cor} rounded-xl p-5 text-white`}><div className="text-xs uppercase opacity-90 tracking-wide flex items-center gap-1">{icon && <ShieldCheck className="w-3.5 h-3.5" />}{lbl}</div><div className="text-4xl font-bold mt-2">{v}</div></div>;

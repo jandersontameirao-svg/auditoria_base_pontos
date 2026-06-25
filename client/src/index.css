@@ -125,6 +125,34 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  @media print {
+    .report-section {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .report-section h2 {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    .report-section table,
+    .report-section thead,
+    .report-section tr,
+    .report-section .grid,
+    .report-section .rounded-lg,
+    .report-section .rounded-xl,
+    .report-section .recharts-responsive-container {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .report-section thead {
+      display: table-header-group;
+    }
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
